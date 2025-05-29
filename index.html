@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title></title>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="title">
+            <h2>Proyek Strategi Algoritmik</h2>
+            <div class="description">
+                Menentukan Rute Optimal Pengiriman Pesawat Kargo Menggunakan Algoritma Greedy
+            </div>
+            <img class="sidebar-close" src="icon/menu.svg" alt="" onclick="toggleMenu('.sidebar','.sidebar-open')">
+        </div>
+        <div class="menu">
+            <div class="sub-menu">
+                <label>Pilih bandara awal</label>
+                <select id="kota"></select>
+            </div>
+            <div class="sub-menu">
+                <label>Min-Max Greedy</label>
+                <select id="greed">
+                    <option value="min">Min</option>
+                    <option value="max">Max</option>
+                </select>
+            </div>
+            <div class="sub-menu">
+                <label>Variasi Greedy</label>
+                <select id="type">
+                    <option value="distances">Distance</option>
+                    <option value="weight">Weight</option>
+                    <option value="profit">Profit</option>
+                    <option value="density">Density</option>
+                </select>
+            </div>
+            <div class="sub-menu sub-menu-weight">
+                <label>Weight</label>
+                <div class="extends" onclick="toggle('.sub-menu-weight')">
+                    <div>Atur Weight</div>
+                    <img src="icon/plus.svg" alt="">
+                </div>
+                <div class="extendable extendable-weight hidden">
+                    <div class="input">
+                    </div>
+                    <div class="extendable-bottom">
+                        <label>Weight Maksimum</label><br>
+                        <input id="maxWeight" type="number" min="0" value="2400"><br>
+                    </div>
+                </div>
+            </div>
+            <div class="sub-menu sub-menu-paket">
+                <label>Profit</label>
+                <div class="extends" onclick="toggle('.sub-menu-paket')">
+                    <div>Atur Total Profit</div>
+                    <img src="icon/plus.svg" alt="">
+                </div>
+                <div class="extendable extendable-total hidden">
+                    <div class="input input-total">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="content">
+
+        <span class="floating-menu sidebar-open hidden" onclick="toggleMenu('.sidebar','.sidebar-open')" style="top: 10px; left: 10px;">
+            <img src="icon/menu.svg" alt="">
+        </span>
+        <div class="map">
+            <canvas id="canvasMap">
+                Browser Tidak Support Canvas
+            </canvas>
+        </div>
+        <div class="sidebar-menu">
+
+        </div>
+        <div class="life-cycle">
+            <button id="back" onclick="back()"><img src="icon/next.svg" alt=""></button>
+            <button id="start" onclick="startGreedy()"><div class="circle"><img src="icon/play.svg" alt=""></div></button>
+            <button id="next" onclick="next()"><img src="icon/next.svg" alt=""></button>
+        </div>
+        <span class="floating-menu path-open" onclick="toggleMenu('.path','.path-open')" style="top: 10px; right: 30px; padding-inline: 10px;">
+            <label>PATH</label>
+        </span>
+        <span class="floating-menu info-open" onclick="toggleMenu('.info','.info-open')" style="top: 10px; right: 100px; padding-inline: 10px;">
+            <label>INFO</label>
+        </span>
+        <div class="floating-box path drag hidden" style="min-height: 100px;height: 700px; max-height: 90vh; width: 500px;">
+            <div class="header" style="display: flex; justify-content: space-between;">
+                <label>PATH</label>
+                <span onclick="toggleMenu('.path','.path-open')" class="click">
+                    &#x2715
+                </span>
+            </div>
+            <div class="path-container" style="flex-grow: 1;">
+
+            </div>
+        </div>
+        <div class="floating-box info drag hidden" style="min-height: 100px;height: 700px; max-height: 90vh; width: 950px;">
+            <div class="header" style="display: flex; justify-content: space-between;">
+                <label style="font-size: 20px; font-weight: 600;">INFO</label>
+                <span onclick="toggleMenu('.info','.info-open')" class="click">
+                    &#x2715
+                </span>
+            </div>
+            <div class="info-container" style="padding-inline: 20px;">
+                
+            </div>
+        </div>
+    </div>
+</body>
+<script src="drag.js"></script>
+<script src="city.js"></script>
+<script>
+    var c = document.getElementById("canvasMap");
+    var ctx = c.getContext("2d");
+    scale = 1;
+
+    dragElement(document.querySelector(".path"));
+    dragElement(document.querySelector(".info"));
+
+    const radius = 5;
+
+    const data = [
+        // nama, distances, circlePos, namePos, weight, profit
+        ["Soekarno-Hatta (CGK)", [0, 692, 983, 1400, 1425, 895, 415, 420, 3730, 740], [470, 490], [400, 470], 200, 500000],
+        ["Juanda (SUB)", [692, 0, 300, 870, 1915, 1485, 360, 670, 3280, 1150], [735, 540], [700, 520], 500, 100000],
+        ["Ngurah Rai (DPS)", [983, 300, 0, 620, 2100, 1750, 600, 950, 3120, 1320], [840, 595], [780, 575], 700, 200000],
+        ["Sultan Hasanuddin (UPG)", [1400, 870, 620, 0, 1675, 1450, 880, 1150, 2200, 970], [1025, 450], [950, 430], 400, 300000],
+        ["Kualanamu (KNO)", [1425, 1915, 2100, 1675, 0, 430, 1330, 900, 3980, 1650], [140, 75], [90, 55], 800, 400000],
+        ["Minangkabau (PDG)", [895, 1485, 1750, 1450, 430, 0, 950, 600, 3820, 1180], [225, 280], [150, 260], 900, 250000],
+        ["Ahmad Yani (SRG)", [415, 360, 600, 880, 1330, 950, 0, 430, 3430, 860], [630, 530], [560, 510], 300, 150000],
+        ["Sultan Mahmud Badaruddin II (PLM)", [420, 670, 950, 1150, 900, 600, 430, 0, 3600, 880], [400, 360], [300, 340], 100, 100000],
+        ["Sentani (DJJ)", [3730, 3280, 3120, 2200, 3980, 3820, 3430, 3600, 0, 2750], [1900, 350], [1815, 330], 1000, 500000],
+        ["Supadio (PNK)", [740, 1150, 1320, 970, 1650, 1180, 860, 880, 2750, 0], [600, 250], [550, 230], 600, 220000]
+    ];
+    
+    let cityObj = [];
+
+    for (const city of data) {
+        const [name, distances, circlePos, namePos,weight, profit] = city;
+        const scaledCirclePos = circlePos.map(pos => pos);
+        const scaledNamePos = namePos.map(name => name);
+        cityObj.push(new City(name, distances, scaledCirclePos, scaledNamePos, weight, profit));
+    }
+    
+    function renderInfo() {
+        const box = document.querySelector(".info-container");
+        let text = "";
+
+        for (let i = 0; i < cityObj.length; i++) {
+            text += `
+                <label>${cityObj[i].getName()}</label>
+                <div class="table-container">
+                <table>
+                    <tr>
+
+            `
+            for (let j = 0; j < cityObj[i].getDistances().length; j++) {
+                text +=`
+                    <th>${cityObj[j].getName()}</th>
+                `
+            }
+            text +=`
+                <tr>
+                </tr>
+            `
+            for (let j = 0; j < cityObj[i].getDistances().length; j++) {
+                text +=`
+                    <td>${cityObj[i].getDistance(j)}</td>
+                `
+            }
+            text += `
+                    </tr>
+                </table>
+                </div>
+                <div style="color: white;">
+                    Berat Paket : ${cityObj[i].getWeight().toLocaleString()} Kg
+                </div>
+                <div style="color: white;">
+                    Profit      : Rp ${cityObj[i].getProfit().toLocaleString()}
+                </div>
+            `
+        }
+        box.innerHTML = text;
+    }
+
+    function renderSelect() {
+        const select = document.querySelector("#kota");
+        let options = "";
+        for (const city of cityObj) {
+            options += `<option value='${city.getName()}'>${city.getName()}</option>`
+        }
+        select.innerHTML = options;
+    }
+
+    function renderInput() {
+        const input = document.querySelector(".input");
+        let form = "";
+
+        for (const [idx, city] of cityObj.entries()) {
+            form += `
+                <label>${city.getName()}</label><br>
+                <input id="weight-city-${idx}" type="number" min="0" value="${city.getWeight()}" onchange="updateWeight(${idx})"><br>
+            `;
+        }
+        input.innerHTML = form;
+    }
+
+    function renderInputTotal() {
+        const input = document.querySelector(".input-total");
+        let form = "";
+
+        for (const [idx, city] of cityObj.entries()) {
+            // console.log(city.getTotalPacket());
+            form += `
+                <label>${city.getName()}</label><br>
+                <input id="total-packet-city-${idx}" type="number" min="0" value="${city.getProfit()}" onchange="updateTotal(${idx})"><br>
+            `;
+        }
+        input.innerHTML = form;
+    }
+
+    renderInput();
+    renderInputTotal();
+    renderSelect();
+    renderInfo();
+    
+    const img = new Image();
+    img.src = "map.jpeg";
+    img.onload = function() {
+        c.width = img.width*scale;
+        c.height = img.height*scale;
+        ctx.drawImage(img, 0, 0, this.width*scale, this.height*scale);
+
+        drawLocation();
+    };
+
+    let current = 0;
+    let pathData;
+    let path;
+
+    function startGreedy() {
+        pathData =[];
+        c.width = img.width*scale;
+        c.height = img.height*scale;
+        ctx.drawImage(img, 0, 0, img.width*scale, img.height*scale);
+        drawLocation();
+
+        path = main();
+        for (let i = 0; i < path.length-1; i++) {
+            drawDistances(path[i],path[i+1]);
+            pathData.push(path[i])
+        }
+        current = path.length-1;
+
+        renderTable(pathData);
+    };
+
+    function next() {
+        pathData =[];
+        c.width = img.width*scale;
+        c.height = img.height*scale;
+        ctx.drawImage(img, 0, 0, img.width*scale, img.height*scale);
+        drawLocation();
+
+        path = main();
+        current+= 1;
+        checkCurrent();
+        for (let i = 0; i < current; i++) {
+            drawDistances(path[i],path[i+1]);
+            pathData.push(path[i])
+        }
+        renderTable(pathData);
+
+        function checkCurrent() {
+            if (current >= path.length-1) {
+                current = path.length-1
+            }
+        }
+    };
+
+    function back() {
+        pathData =[];
+        current -= 1;
+        c.width = img.width*scale;
+        c.height = img.height*scale;
+        ctx.drawImage(img, 0, 0, img.width*scale, img.height*scale);
+        drawLocation();
+
+        path = main();
+        checkCurrent();
+
+        for (let i = 0; i < current; i++) {
+            drawDistances(path[i],path[i+1]);
+            pathData.push(path[i])
+        }
+        pathData.push(path[current])
+        renderTable(pathData);
+
+        function checkCurrent() {
+            if (current < 0) {
+                current = 0;
+            }
+        }
+    }
+
+    function drawLocation() {
+        for (const city of cityObj) {
+            ctx.lineWidth = 1;
+            const position = city.getCirclePosition();
+            const name = city.getNamePos();
+            const text = city.getName();
+            ctx.beginPath();
+            ctx.arc(position[0], position[1], radius, 0, 2 * Math.PI, false);
+            ctx.fillStyle = '#4a4a4a85';
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#000000';
+            ctx.stroke();
+            ctx.font = "16px Poppins";
+            ctx.strokeStyle = "white";
+            ctx.fillStyle = 'black';
+            ctx.strokeText(text, name[0], name[1]);
+            ctx.fillText(text, name[0], name[1]);
+            ctx.fill();
+        }
+    };
+
+    function drawDistances(city1,city2) {
+        drawLine(cityObj[city1].getCirclePosition(), cityObj[city2].getCirclePosition(), cityObj[city1].getDistance(city2)+" km");
+    };
+
+    function drawLine(pos1, pos2, text) {
+        ctx.strokeStyle = 'blue';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(pos1[0], pos1[1]);
+        ctx.lineTo(pos2[0], pos2[1]);
+        ctx.stroke();
+        drawText(pos1, pos2, text);
+    };
+
+    function drawText(pos1, pos2, text) {
+        const midX = (pos1[0] + pos2[0]) / 2;
+        const midY = (pos1[1] + pos2[1]) / 2;
+        ctx.fillStyle = 'black';
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 2; 
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.strokeText(text, midX, midY);
+        ctx.fillText(text, midX, midY); 
+    };
+
+    function toggle(e) {
+        const div = document.querySelector(`${e}`);
+
+        div.querySelector('.extendable').classList.toggle('hidden');
+        div.querySelector('.extends').classList.toggle('expanded');
+
+        const image = div.querySelector('img');
+
+        if (image.src.endsWith('plus.svg')) {
+            image.src = 'icon/min.svg';
+        } else {
+            image.src = 'icon/plus.svg';
+        }
+    }
+
+    function main() {
+        let dynamic_var;
+        const type = document.querySelector('#type').value;
+        console.log(type);
+        if (type == "distances") {
+            dynamic_var = cityObj.map(item => item.getDistances());
+        } else if (type == "weight"){
+            const weight2 = cityObj.map(item => [item.getWeight()]);
+            dynamic_var = getWeightPerCity(weight2);
+        } else if (type == "profit"){
+            dynamic_var = getWeightPerCity(cityObj.map(item => [item.getProfit()]));
+            console.log(dynamic_var);
+        } else {
+            const weight2 = cityObj.map(item => [item.getWeight()]);
+            const weight3 = getWeightPerCity(weight2);
+            const profit = getWeightPerCity(cityObj.map(item => [item.getProfit()]));
+            const density = profit.map((row, i) =>
+                row.map((value, j) => {
+                    const divisionResult = value / weight3[i][j];
+                    return isNaN(divisionResult) ? 0 : divisionResult;
+                })
+            );
+            dynamic_var = density;
+        }
+        const kotaAwal = document.querySelector('#kota').value;
+
+        const greed = document.querySelector('#greed').value;
+
+        [path, profit, weight, disctance] = greedyAlgorithm(dynamic_var,kotaAwal,greed);
+        return path;
+    }
+
+    function greedyAlgorithm(dynamic_var, kotaAwal, greed) {
+        const path = [];
+        const maxWeight = parseFloat(document.querySelector('#maxWeight').value);
+        const n = cityObj.length;
+        const visited = Array(n).fill(false);
+
+        const distances = cityObj.map(item => item.getDistances());
+        const weights = cityObj.map(item => item.getWeight());
+        const profits = cityObj.map(item => item.getProfit());
+
+        let current = cityObj.findIndex(city => city.getName() === kotaAwal);
+        visited[current] = true;
+        path.push(current);
+
+        let sumWeight = weights[current];
+        let sumProfit = profits[current];
+        let sumDistance = 0;
+
+        while (true) {
+            let candidates = [];
+
+            for (let j = 0; j < n; j++) {
+                if (!visited[j] && sumWeight + weights[j] <= maxWeight) {
+                    candidates.push({ index: j, value: dynamic_var[current][j] });
+                }
+            }
+
+            if (candidates.length === 0) break;
+
+            candidates.sort((a, b) => {
+                return greed === "min" ? a.value - b.value : b.value - a.value;
+            });
+
+            const next = candidates[0].index;
+            visited[next] = true;
+            path.push(next);
+            sumWeight += weights[next];
+            sumProfit += profits[next];
+            sumDistance += distances[current][next];
+            current = next;
+        }
+
+        return [path, sumProfit, sumWeight, sumDistance];
+    }
+
+    function bruteForceAlgorithm(type) {
+        result = [];
+        var selectElement = document.getElementById("type");
+        var optionValues = [];
+        for (var i = 0; i < selectElement.options.length; i++) {
+            optionValues.push(selectElement.options[i].value);
+        }
+        var selectElementGreed = document.getElementById("greed");
+        var optionValuesGreed = [];
+        for (var i = 0; i < selectElementGreed.options.length; i++) {
+            optionValuesGreed.push(selectElementGreed.options[i].value);
+        }
+        var array =[];
+        for (let i = 0; i < optionValues.length; i++) {
+            if (optionValues == "distances") {
+                array.push(cityObj.map(item => item.getDistances()));
+            } else if (optionValues == "weight"){
+                const weight2 = cityObj.map(item => [item.getWeight()]);
+                array.push(getWeightPerCity(weight2));
+            } else if (optionValues == "profit"){
+                array.push(getWeightPerCity(cityObj.map(item => [item.getProfit()])));
+            } else {
+                const weight2 = cityObj.map(item => [item.getWeight()]);
+                const weight3 = getWeightPerCity(weight2);
+                const profit = getWeightPerCity(cityObj.map(item => [item.getProfit()]));
+                const density = profit.map((row, i) =>
+                    row.map((value, j) => {
+                        const divisionResult = value / weight3[i][j];
+                        return isNaN(divisionResult) ? 0 : divisionResult;
+                    })
+                );
+                array.push(density);
+            }
+        }
+
+        for (let i = 0; i < array.length; i++) {
+            for (let j = 0; j < cityObj.length; j++) {
+                for (let k = 0; k < optionValuesGreed.length; k++) {
+                    [path, profit,weight, distance] = greedyAlgorithm(array[i],cityObj[j].getName(),optionValuesGreed[k])
+                    result.push([[optionValues[i],cityObj[j].getName(), optionValuesGreed[k]],[path,profit, weight, distance]])
+                }
+            }
+        }
+
+        if (type.toUpperCase() == "MIN") {
+            result.sort(function(a, b) {
+                return a[1][1] - b[1][1];
+            });
+        } else {
+            result.sort(function(a, b) {
+                return b[1][1] - a[1][1];
+            });
+        }
+        // console.log(result);
+
+        return result;
+    }
+
+    function getWeightPerCity(weight2) {
+        transformedArray = [];
+        for (let i = 0; i < weight2.length; i++) {
+            transformedArray.push(weight2.map((item, idx) => {
+            if(idx === i){
+                return 0;
+            }
+                return item;
+            }).flat())    
+        }
+        return transformedArray;
+    }
+
+    function updateWeight(idx) {
+        cityObj[idx].setWeight(parseInt(document.querySelector(`#weight-city-${idx}`).value));
+    }
+
+    function updateTotal(idx) {
+        cityObj[idx].setProfit(parseInt(document.querySelector(`#total-packet-city-${idx}`).value));
+    }
+
+    function renderTable(data) {
+        let sumDistance = 0;
+        let sumWeight = 0;
+        let sumProfit = 0;
+        const tbody = document.querySelector('.path-container');
+        let tr = "";
+        console.log(data);
+        if (!(data.length <= 1)) {
+            tr += `
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>No</th>
+                            <th>Bandara</th>
+                            <th>Distance</th>
+                            <th>Weight</th>
+                            <th>Profit</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `
+            for (let i = 0; i < data.length - 1; i++) {
+                tr += `
+                <tr>
+                    <td>${i+1}</td>
+                    <td>${cityObj[data[i]].getName()} -> ${cityObj[data[i + 1]].getName()}</td>
+                    <td>${cityObj[data[i]].getDistance(data[i + 1])}</td>
+                    <td>${cityObj[data[i + 1]].getWeight().toLocaleString()}</td>
+                    <td>${cityObj[data[i + 1]].getProfit().toLocaleString()}</td>
+                </tr>
+                `
+                sumDistance += cityObj[data[i]].getDistance(data[i + 1]);
+                sumWeight += cityObj[data[i + 1]].getWeight();
+                sumProfit += cityObj[data[i + 1]].getProfit();
+            }
+            tr += `
+                <tr>
+                    <td colspan="2">Total</td>
+                    <td>${sumDistance.toLocaleString()} km</td>
+                    <td>${sumWeight.toLocaleString()} kg</td>
+                    <td>Rp ${sumProfit.toLocaleString()}</td>
+                </tr>
+            `
+            tr += `
+                    </tbody>
+                </table>
+            </div>
+
+            `
+        }
+        tbody.innerHTML = tr;
+    }
+
+    function toggleMenu(source="", target="") {
+        const sidebar = document.querySelector(source);
+        const sidebarOpen = document.querySelector(target);
+        sidebar.classList.toggle('hidden');
+        sidebarOpen.classList.toggle('hidden');
+    }
+
+    function renderBruteResult() {
+        const type = document.querySelector("#brute-select").value;
+        const brute = bruteForceAlgorithm(type);
+        const container = document.querySelector(".brute-container");
+        let isi = "";
+        isi +=`
+            <div class="table-container">
+            <table>
+        `
+        isi +=`
+                <tr>
+                    <th>No</th>
+                    <th>Kota Awal</th>
+                    <th>Variasi</th>
+                    <th>Tipe</th>
+                    <th>Rute</th>
+                    <th>Profit</th>
+                    <th>Weight</th>
+                    <th>Jarak</th>
+                </tr>
+            `
+        for (let i = 0; i < brute.length; i++) {
+            isi +=`
+                <tr>
+                    <td>${i+1}</td>
+                    <td>${brute[i][0][1]}</td>
+                    <td>${brute[i][0][0]}</td>
+                    <td>${brute[i][0][2]}</td>
+                    <td>${brute[i][1][0]}</td>
+                    <td>${brute[i][1][1]}</td>
+                    <td>${brute[i][1][2]}</td>
+                    <td>${brute[i][1][3]}</td>
+                </tr>
+            `
+        }
+        isi +=`
+            </table>
+            </div>
+        `
+        container.innerHTML = isi;
+    }
+
+</script>
+</html>
